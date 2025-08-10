@@ -204,7 +204,7 @@ def merge_uploaded_files(grouped_files: Dict[str, List[Tuple[str, bytes]]], skip
             "status": "ok",
             "file_name": output_name,
             "bytes": data_bytes,
-            "preview": final_df.head(100),
+            "preview": final_df.head(10),
             "rows": len(combined),
             "files": [n for n, _ in files],
             "last_header_row": last_header_row_preview,
@@ -217,77 +217,274 @@ def merge_uploaded_files(grouped_files: Dict[str, List[Tuple[str, bytes]]], skip
 # ====================
 # Streamlit UI
 # ====================
+def _inject_minimal_compact_style() -> None:
+    """注入轻量紧凑风格的全局 CSS，使默认展示更加简约与节省空间。"""
+    st.markdown(
+        """
+        <style>
+        :root {
+            /* 色板：有限且和谐 */
+            --color-primary: #4f46e5;
+            --color-primary-600: #4f46e5;
+            --color-accent: #16a34a;
+            --color-text: #111827;
+            --color-muted: #6b7280;
+            --color-border: #e5e7eb;
+            --color-surface: #ffffff;
+            --color-surface-tint: #f7faff;
+            --shadow-sm: 0 2px 8px rgba(17,24,39,0.06);
+            --radius-md: 10px;
+            --space-1: 0.25rem; /* 4px */
+            --space-2: 0.5rem;  /* 8px */
+            --space-3: 0.75rem; /* 12px */
+            --space-4: 1rem;   /* 16px */
+        }
+
+        /* 全局：现代无衬线字体、抗锯齿与紧凑间距 */
+        html, body, [data-testid="stAppViewContainer"] {
+            font-size: 14px;
+            font-family: Inter, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            color: var(--color-text);
+        }
+
+        /* 主容器：更紧凑的留白与响应式分布 */
+        .main .block-container {
+            padding: var(--space-3) var(--space-4);
+        }
+        /* 列容器（Columns）使用更小的横向间距 */
+        [data-testid="stHorizontalBlock"] { gap: var(--space-3) !important; align-items: flex-start; }
+
+        /* 侧边栏上下留白更小 */
+        section[data-testid="stSidebar"] > div { padding-top: var(--space-3); padding-bottom: var(--space-3); }
+
+        /* 控件标签与控件之间的间距更紧凑 */
+        label[data-testid="stWidgetLabel"] { margin-bottom: var(--space-1); }
+
+        /* 按钮更紧凑的内边距与更圆润的圆角 */
+        button[kind="primary"], button[kind="secondary"] {
+            padding: 0.4rem 0.8rem;
+            border-radius: 8px;
+            transition: background-color .15s ease, box-shadow .15s ease, transform .12s ease;
+        }
+
+        /* DataFrame 表格更紧凑的行高 */
+        [data-testid="stDataFrame"] div[role="row"] { min-height: 24px; }
+
+        /* 折叠面板内容内边距更小 */
+        div[role="region"][aria-label="stExpander"] > div {
+            padding-top: 0.25rem;
+            padding-bottom: 0.25rem;
+        }
+
+        /* 标题底部间距更小，整体更简约 */
+        h1, h2, h3 {
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
+            letter-spacing: normal;
+            overflow: visible;
+        }
+
+        /* 卡片式容器优化（对带边框的容器与主要块）*/
+        div[data-testid="stContainer"] {
+            border-radius: var(--radius-md);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow .15s ease, transform .12s ease;
+        }
+        div[data-testid="stContainer"]:hover { box-shadow: 0 4px 14px rgba(17,24,39,0.10); }
+
+        /* 选项卡与内容间距更紧凑 */
+        div[role="tablist"] { margin-bottom: 0.5rem; }
+        [role="tab"] { padding: 0.25rem 0.75rem; color: var(--color-muted); transition: color .15s ease, border-color .15s ease; }
+        [role="tab"][aria-selected="true"] {
+            border-bottom: 2px solid var(--color-primary);
+            color: var(--color-text);
+        }
+
+        /* 文件上传区域：中文提示 + 淡色背景突出 */
+        [data-testid="stFileUploaderDropzone"] {
+            position: relative;
+            border: 1px dashed var(--color-border) !important;
+            background: var(--color-surface-tint);
+            border-radius: var(--radius-md);
+            transition: border-color .15s ease, box-shadow .15s ease;
+            padding-right: var(--space-4); /* 按钮隐藏后恢复正常内边距 */
+        }
+        [data-testid="stFileUploaderDropzone"]:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); }
+        
+        [data-testid="stFileUploader"] button:not([aria-label]):hover { filter: brightness(1.04); transform: translateY(-1px); }
+        [data-testid="stFileUploader"] button:not([aria-label])::after {
+            content: "选择文件";
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-size: 14px; /* 恢复可读字号 */
+        }
+        /* 还原文件列表内的图标按钮样式，避免文字覆盖 */
+        [data-testid="stFileUploader"] button[aria-label] {
+            color: inherit;
+            background: initial;
+            box-shadow: none;
+            transform: none;
+            filter: none;
+        }
+        [data-testid="stFileUploader"] button[aria-label]::after { content: none !important; }
+
+        /* 主要按钮更现代的渐变与动效 */
+        button[kind="primary"] {
+            background: var(--color-primary);
+            border: none;
+            box-shadow: var(--shadow-sm);
+        }
+        button[kind="primary"]:hover { filter: brightness(1.04); transform: translateY(-1px); }
+        button[kind="primary"]:active { transform: translateY(0); filter: brightness(0.98); }
+        button[kind="primary"]:focus { outline: 2px solid rgba(79,70,229,0.35); outline-offset: 2px; }
+
+        /* 轻量“芯片”组件 */
+        .chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #334155; font-size: 12px; border: 1px solid #e2e8f0; margin-right: 6px; }
+
+        /* 顶部 Hero 标题更具层次与高级感 */
+        .app-hero { padding: 0.25rem 0 0.5rem 0; }
+        .app-hero h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; color: var(--color-text); margin: 0 0 6px 0; }
+        .app-hero .subtitle { color: #6b7280; margin: 0 0 8px 0; }
+        .app-hero .ver { font-weight: 700; font-size: 0.9em; }
+        .app-hero .hero-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+        .app-hero .author {
+            color: #111827;
+            background: #eef2ff;
+            border: 1px solid #e0e7ff;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        /* 响应式：在窄屏下增加留白并让表格高度更低 */
+        @media (max-width: 1100px) {
+            .main .block-container { padding-left: var(--space-3); padding-right: var(--space-3); }
+            [data-testid="stDataFrame"] { height: 320px !important; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 st.set_page_config(page_title="Excel/CSV 批量合并工具 v1.0", layout="wide")
-st.title("Excel/CSV 批量合并工具 v1.0")
-st.caption("支持 CSV 与 Excel，同时上传、预览与一键下载合并结果。")
+
+_inject_minimal_compact_style()
+
+# 顶部 Hero，现代化标题与标签
+with st.container(border=False):
+    st.markdown(
+        """
+        <div class="app-hero">
+            <div class="hero-top">
+                <h1>Excel/CSV 批量合并工具 <span class="ver">v1.0 沈浪</span></h1>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 with st.sidebar:
     st.header("合并设置")
     skip_rows = st.number_input("跳过行数（标题区行数）", min_value=0, value=1, step=1)
-    st.markdown("- 建议将标题区域行数设为实际表头所在行数\n- Excel 输出将对标题区域最后一行加粗")
+    st.divider()
+    st.subheader("上传文件")
+    uploaded_files = st.file_uploader(
+        "选择要合并的文件（可多选）",
+        type=["csv", "xlsx"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+    )
+    if uploaded_files:
+        st.caption(f"已选择 {len(uploaded_files)} 个文件")
+    else:
+        st.caption("尚未选择文件")
+    st.divider()
+    st.subheader("执行合并")
+    run = st.button("开始合并", type="primary", use_container_width=True)
 
-uploaded_files = st.file_uploader(
-    "选择要合并的文件（可多选）",
-    type=["csv", "xlsx"],
-    accept_multiple_files=True,
-)
+left_col, right_col = st.columns([0.01, 0.99], gap="small")
 
-if uploaded_files:
-    st.success(f"已选择 {len(uploaded_files)} 个文件")
+with right_col:
+    if run:
+        if not uploaded_files:
+            st.warning("请先选择文件")
+            st.stop()
 
-run = st.button("开始合并", type="primary")
+        # 将上传文件按扩展名分组
+        grouped: Dict[str, List[Tuple[str, bytes]]] = {".csv": [], ".xlsx": []}
+        for uf in uploaded_files:
+            name: str = uf.name
+            content: bytes = uf.read()
+            uf.seek(0)
+            ext = os.path.splitext(name)[1].lower()
+            if ext in grouped:
+                grouped[ext].append((name, content))
 
-if run:
-    if not uploaded_files:
-        st.warning("请先选择文件")
-        st.stop()
+        if not any(grouped.values()):
+            st.error("未识别到可合并的 CSV/Excel 文件")
+            st.stop()
 
-    # 将上传文件按扩展名分组
-    grouped: Dict[str, List[Tuple[str, bytes]]] = {".csv": [], ".xlsx": []}
-    for uf in uploaded_files:
-        name: str = uf.name
-        content: bytes = uf.read()
-        uf.seek(0)
-        ext = os.path.splitext(name)[1].lower()
-        if ext in grouped:
-            grouped[ext].append((name, content))
+        with st.spinner("正在合并，请稍候..."):
+            results = merge_uploaded_files(grouped, int(skip_rows))
 
-    if not any(grouped.values()):
-        st.error("未识别到可合并的 CSV/Excel 文件")
-        st.stop()
+        # 展示与下载：使用选项卡 + 双栏卡片式布局（右侧）
+        # 仅展示存在结果的类型，并按 CSV、Excel 顺序
+        display_order = [ext for ext in [".csv", ".xlsx"] if ext in results]
+        if display_order:
+            tabs = st.tabs([SUPPORTED_FORMATS[ext] for ext in display_order])
+            for idx, ext in enumerate(display_order):
+                with tabs[idx]:
+                    result = results.get(ext)
+                    if not result:
+                        st.info("无可用数据")
+                        continue
 
-    with st.spinner("正在合并，请稍候..."):
-        results = merge_uploaded_files(grouped, int(skip_rows))
+                    status = result.get("status")
+                    if status != "ok":
+                        st.info(result.get("message", "无可用数据"))
+                        continue
 
-    # 展示与下载
-    for ext, result in results.items():
-        if not result:
-            continue
-        with st.container(border=True):
-            st.subheader(f"{SUPPORTED_FORMATS[ext]} 合并结果")
-            status = result.get("status")
-            if status != "ok":
-                st.info(result.get("message", "无可用数据"))
-                continue
+                    files = result["files"]
 
-            files = result["files"]
-            st.write(f"文件数: {len(files)} | 合并后数据行数: {result['rows']} | 基准列数: {result['base_columns_count']}")
-            if result.get("last_header_row") is not None:
-                with st.expander("标题区最后一行预览", expanded=False):
-                    st.write(result["last_header_row"])  # 展示为一行数组
+                    left, right = st.columns([0.36, 0.64])
 
-            with st.expander("已参与合并的文件清单", expanded=False):
-                st.write(files)
+                    with left:
+                        with st.container(border=True):
+                            st.subheader("信息与下载")
+                            m1, m2, m3 = st.columns(3)
+                            m1.metric("文件数", len(files))
+                            m2.metric("合并行数", result["rows"])
+                            m3.metric("列数", result["base_columns_count"])
 
-            st.markdown("**合并后数据预览（前100行）**")
-            st.dataframe(result["preview"], use_container_width=True, height=320)
+                            if result.get("last_header_row") is not None:
+                                with st.expander("标题区最后一行预览", expanded=False):
+                                    st.write(result["last_header_row"])  # 一行数组
 
-            st.download_button(
-                label="下载合并结果",
-                data=result["bytes"],
-                file_name=result["file_name"],
-                mime=(
-                    "text/csv" if ext == ".csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                ),
-            )
+                            with st.expander("已参与合并的文件清单", expanded=False):
+                                st.write(files)
+
+                            st.download_button(
+                                label="下载合并结果",
+                                data=result["bytes"],
+                                file_name=result["file_name"],
+                                use_container_width=True,
+                                mime=(
+                                    "text/csv"
+                                    if ext == ".csv"
+                                    else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                ),
+                            )
+
+                    with right:
+                        with st.container(border=True):
+                            st.subheader("数据预览（前10行）")
+                            st.dataframe(result["preview"], use_container_width=True, height=260)
 

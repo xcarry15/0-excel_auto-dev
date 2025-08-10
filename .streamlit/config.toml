@@ -1,0 +1,11 @@
+[theme]
+base = "light"
+primaryColor = "#6366f1"  # 更加柔和的主色调（蓝紫渐变）
+backgroundColor = "#f4f6fb"  # 更温和的浅灰背景
+secondaryBackgroundColor = "#e0e7ef"  # 卡片/侧边栏淡蓝灰
+textColor = "#22223b"  # 更深的正文色，提升可读性
+font = "sans serif"  # 使用无衬线字体，更现代
+# 增加高亮色和成功色，提升交互体验
+successColor = "#22c55e"
+warningColor = "#f59e42"
+errorColor = "#ef4444"
